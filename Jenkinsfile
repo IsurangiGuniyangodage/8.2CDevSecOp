@@ -1,54 +1,33 @@
 pipeline {
   agent any
-
   stages {
     stage('Checkout') {
       steps {
         git branch: 'main', url: 'https://github.com/IsurangiGuniyangodage/8.2CDevSecOp.git'
       }
     }
-
-    stage('Install Dependencies') {
-      steps {
-        sh 'npm install'
-      }
-    }
-
-    stage('Run Tests') {
-      steps {
-        sh 'npm test || true'
-      }
-    }
-
-    stage('Generate Coverage Report') {
-      steps {
-        sh 'npm run coverage || true'
-      }
-    }
-
-    stage('NPM Audit (Security Scan)') {
-      steps {
-        sh 'npm audit || true'
-      }
-    }
+    stage('Install Dependencies') { steps { bat 'npm install' } }
+    stage('Run Tests')           { steps { bat 'npm test || exit /b 0' } }
+    stage('Generate Coverage Report') { steps { bat 'npm run coverage || exit /b 0' } }
+    stage('NPM Audit (Security Scan)') { steps { bat 'npm audit || exit /b 0' } }
 
     stage('SonarCloud Analysis') {
       steps {
         withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
-          sh '''
-            set -e
-            SCANNER_DIR="$WORKSPACE/.sonar/scanner"
-            mkdir -p "$SCANNER_DIR"
+          bat '''
+          setlocal
+          set "SCANNER_DIR=%WORKSPACE%\\.sonar\\scanner"
+          if not exist "%SCANNER_DIR%" mkdir "%SCANNER_DIR%"
 
-            if [ ! -x "$SCANNER_DIR/bin/sonar-scanner" ]; then
-              curl -L -o scanner.zip \
-                https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
-              unzip -q scanner.zip -d "$WORKSPACE/.sonar"
-              mv "$WORKSPACE/.sonar/sonar-scanner-5.0.1.3006-linux" "$SCANNER_DIR"
-            fi
-
-            export PATH="$SCANNER_DIR/bin:$PATH"
-            sonar-scanner -Dsonar.login="$SONAR_TOKEN"
+          if not exist "%SCANNER_DIR%\\bin\\sonar-scanner.bat" (
+            powershell -Command "Invoke-WebRequest -Uri https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-windows.zip -OutFile scanner.zip"
+            powershell -Command "Expand-Archive -Path scanner.zip -DestinationPath %WORKSPACE%\\.sonar -Force"
+            for /d %%D in ("%WORKSPACE%\\.sonar\\sonar-scanner-*") do set "EXTRACTED=%%D"
+            move "%EXTRACTED%" "%SCANNER_DIR%"
+          )
+          set "PATH=%SCANNER_DIR%\\bin;%PATH%"
+          call "%SCANNER_DIR%\\bin\\sonar-scanner.bat" -D"sonar.login=%SONAR_TOKEN%"
+          endlocal
           '''
         }
       }
