@@ -1,74 +1,107 @@
 pipeline {
     agent any
-
+    
     stages {
-        stage('Checkout') {
+        stage('Build') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/IsurangiGuniyangodage/8.2CDevSecOp.git'
+                echo 'Building the application...'
+                // Build tool example: Maven, Gradle, or npm
+                sh 'mvn clean compile'
             }
         }
-
-        stage('Install Dependencies') {
+        
+        stage('Test') {
             steps {
-                sh 'npm install'
+                echo 'Running tests...'
+                // Test tool example: JUnit, Jest, pytest
+                sh 'mvn test'
             }
-        }
-
-        stage('Run Tests') {
-            steps {
-                sh 'npm test || true'
-            }
-        }
-
-        stage('Generate Coverage Report') {
-            steps {
-                sh '''
-                    # Install coverage tool if not available
-                    if ! npm list nyc >/dev/null 2>&1; then
-                        npm install --save-dev nyc
-                    fi
-                    
-                    # Try to run mocha tests directly for coverage
-                    npx nyc --reporter=lcov npx mocha test/ || echo "Coverage generation failed, continuing..."
-                '''
-            }
-        }
-
-        stage('NPM Audit (Security Scan)') {
-            steps {
-                sh 'npm audit || true'
-            }
-        }
-
-        stage('SonarCloud Analysis') {
-            steps {
-                withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
-                    script {
-                        // Get the SonarQube Scanner tool path
-                        def scannerHome = tool 'SonarQubeScanner'
-                        
-                        sh """
-                            ${scannerHome}/bin/sonar-scanner \
-                                -Dsonar.projectKey=IsurangiGuniyangodage_8.2CDevSecOp \
-                                -Dsonar.organization=isurangiguniyangodage \
-                                -Dsonar.host.url=https://sonarcloud.io \
-                                -Dsonar.login="$SONAR_TOKEN" \
-                                -Dsonar.sources=. \
-                                -Dsonar.exclusions=node_modules/**,test/** \
-                                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
-                                -Dsonar.projectName="NodeJS Goof Vulnerable App" \
-                                -Dsonar.sourceEncoding=UTF-8
-                        """
-                    }
+            post {
+                always {
+                    // Send email notification after test stage
+                    emailext (
+                        to: 'developer@example.com',
+                        subject: "TEST STAGE: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        body: """
+                            <p>Test stage completed with status: <b>${currentBuild.currentResult}</b></p>
+                            <p>Job: ${env.JOB_NAME}</p>
+                            <p>Build Number: ${env.BUILD_NUMBER}</p>
+                            <p>Build URL: ${env.BUILD_URL}</p>
+                            <p>Please check the attached logs for details.</p>
+                        """,
+                        attachLog: true,
+                        compressLog: true
+                    )
                 }
             }
         }
+        
+        stage('Security Scan') {
+            steps {
+                echo 'Running security scan...'
+                // Security scan tool example: OWASP ZAP, SonarQube, Snyk
+                sh 'mvn org.owasp:dependency-check-maven:check'
+            }
+            post {
+                always {
+                    // Send email notification after security scan stage
+                    emailext (
+                        to: 'developer@example.com',
+                        subject: "SECURITY SCAN: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        body: """
+                            <p>Security scan stage completed with status: <b>${currentBuild.currentResult}</b></p>
+                            <p>Job: ${env.JOB_NAME}</p>
+                            <p>Build Number: ${env.BUILD_NUMBER}</p>
+                            <p>Build URL: ${env.BUILD_URL}</p>
+                            <p>Please check the attached logs for details.</p>
+                        """,
+                        attachLog: true,
+                        compressLog: true
+                    )
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo 'Deploying application...'
+                // Deployment tool example: Docker, Kubernetes, Ansible
+                sh 'docker build -t myapp .'
+            }
+        }
     }
-
+    
     post {
-        always {
-            echo 'Pipeline execution completed. Check SonarCloud dashboard for results: https://sonarcloud.io'
+        failure {
+            // Send email on overall pipeline failure
+            emailext (
+                to: 'isuthilakshana@gmail.com',
+                subject: "FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+                    <p>Pipeline failed!</p>
+                    <p>Job: ${env.JOB_NAME}</p>
+                    <p>Build Number: ${env.BUILD_NUMBER}</p>
+                    <p>Build URL: ${env.BUILD_URL}</p>
+                    <p>Please check the attached logs for details.</p>
+                """,
+                attachLog: true,
+                compressLog: true
+            )
+        }
+        
+        success {
+            // Send email on overall pipeline success
+            emailext (
+                to: 'isuthilakshana@gmail.com',
+                subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+                    <p>Pipeline completed successfully!</p>
+                    <p>Job: ${env.JOB_NAME}</p>
+                    <p>Build Number: ${env.BUILD_NUMBER}</p>
+                    <p>Build URL: ${env.BUILD_URL}</p>
+                """,
+                attachLog: false
+            )
         }
     }
 }
